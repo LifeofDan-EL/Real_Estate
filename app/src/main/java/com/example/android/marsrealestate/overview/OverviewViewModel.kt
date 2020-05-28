@@ -21,29 +21,35 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.example.android.marsrealestate.network.MarsApi
-import com.example.android.marsrealestate.network.MarsApiService
 import com.example.android.marsrealestate.network.MarsProperty
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import retrofit2.Call
-import retrofit2.Response
-import retrofit2.Callback
+
 /**
  * The [ViewModel] that is attached to the [OverviewFragment].
  */
 class OverviewViewModel : ViewModel() {
 
     // The internal MutableLiveData String that stores the status of the most recent request
-    private val _response = MutableLiveData<String>()
+    private val _status = MutableLiveData<String>()
 
     // The external immutable LiveData for the request status String
     val response: LiveData<String>
-        get() = _response
+        get() = _status
 
-    // A coroutine Job and CoroutineScope using the Main Dispatcher
+    // Internally, we use a MutableLiveData, because we will be updating the MarsProperty with new values
+    private val _properties = MutableLiveData<List<MarsProperty>>()
+
+    // The external LiveData interface to the properties is immutable, so only this class can modify
+    val properties: LiveData<List<MarsProperty>>
+    get() = _properties
+
+    // A CoroutineScope using a job to be able to cancel when needed
     private var viewModelJob = Job()
+
+    // the Coroutine runs using a job to be able to cancel when needed
     private val coroutineScope = CoroutineScope(viewModelJob + Dispatchers.Main)
 
     /**
@@ -62,10 +68,15 @@ class OverviewViewModel : ViewModel() {
            var getPropertiesDeferred = MarsApi.retrofitService.getProperties()
 
                    try {
+                       // Await the completion of our Retrofit request
                        var listResult = getPropertiesDeferred.await()
-                       _response.value = "Success: ${listResult.size} Mars properties retrieved"
-                   } catch (t:Throwable){
-                       _response.value = "Failure: " + t.message
+                       _status.value = "Success: ${listResult.size} Mars Properties"
+
+                       if (listResult.size > 0) {
+                           _properties.value = listResult
+                       }
+                   } catch (e: Exception){
+                       _status.value = "Failure: ${e.message}"
                    }
         }
 
